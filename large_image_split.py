@@ -166,7 +166,7 @@ def main(ImagePath, AnnotationPath, SavePath, subsize=1024, overlap=200, IoU_thr
                     elif sub_img_shapely_cord.intersects(bbox):
                         intersection = sub_img_shapely_cord.intersection(bbox)
                         # 只考虑相交形状为矩形的情况 为线和点的情况 相当于目标只占图像的一个像素或一排像素 不考虑
-                        if intersection.type == "Polygon":
+                        if intersection.geom_type == "Polygon":
                             # 计算是否满足阈值的要求
                             area1 = intersection.area
                             area2 = bbox.area
@@ -193,10 +193,63 @@ def main(ImagePath, AnnotationPath, SavePath, subsize=1024, overlap=200, IoU_thr
         print(image, "finished!")
 
 
+def main_image_only(ImagePath, SavePath, subsize=4, overlap=0):
+    images_list = os.listdir(ImagePath)
+    images_list.sort()
+    os.makedirs(SavePath, exist_ok=True)
+
+    # 遍历所有图像
+    for each_path in images_list:
+        image_path = os.path.join(ImagePath, each_path)
+
+        # 获取文件名
+        file_name = get_filename_without_extension(image_path)
+
+        # 读取图像
+        img = cv2.imread(image_path)
+        H_img = np.shape(img)[0]
+        W_img = np.shape(img)[1]
+        # print("Image Height:", H_img)
+        # print("Image Width:", W_img)
+        # 检测subsize的合法性
+        if (subsize >= H_img) or (subsize >= W_img):
+            print("Wrong subsize, subsize must < Height/Weight of the Image!!!")
+
+        # 检测overlap合法性
+        if overlap < 0:
+            print("Wrong overlap, overlap must >= 0 !!!")
+        if overlap >= subsize:
+            print("Wrong overlap, overlap < subsize !!!")
+
+        # 计算横x(W) 纵y(H) 方向上子图个数
+        n_x, n_y = count_x_y_sub_images(subsize, overlap, H_img, W_img)
+
+        # 遍历整个大图
+        for i in range(n_x):  # x是W
+            for j in range(n_y):  # y是H
+                # 根据滑动窗口的位置 确定当前子图左上角的坐标
+                if (i != n_x-1) and (j != n_y-1):
+                    left_up = [i * (subsize - overlap), j * (subsize - overlap)]  # left_up=(x左上, y左上)
+                elif (i == n_x-1) and ( j != n_y-1):
+                    left_up = [W_img-subsize, j * (subsize - overlap)]
+                elif (i != n_x-1) and ( j == n_y-1):
+                    left_up = [i * (subsize - overlap), H_img-subsize]
+                else:
+                    left_up = [W_img-subsize, H_img-subsize]
+                
+                # 保存sub_img
+                sub_img = img[left_up[1]:left_up[1]+subsize, left_up[0]:left_up[0]+subsize, :]
+                cv2.imwrite(os.path.join(SavePath, "{}_{}_{}.jpg".format(file_name, left_up[0], left_up[1])), sub_img)
+                
+        print(image_path, "finished!")
+
+
 if __name__ == "__main__":
-    ImagePath = "horizontal_object_detection/example_images"
-    AnnotationPath = "horizontal_object_detection/example_labels"
-    SavePath = "horizontal_object_detection/example_results"
-    main(ImagePath, AnnotationPath, SavePath)
+    # ImagePath = "horizontal_object_detection/example_images"
+    # AnnotationPath = "horizontal_object_detection/example_labels"
+    # SavePath = "horizontal_object_detection/example_results"
+    # main(ImagePath, AnnotationPath, SavePath)
 
-
+    ImagePath = "tmp_files/patch"
+    SavePath = "tmp_files/patch_new_results_small"
+    main_image_only(ImagePath, SavePath, subsize=80, overlap=40)
